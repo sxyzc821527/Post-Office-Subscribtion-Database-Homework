@@ -20,6 +20,7 @@ import functools
 import hashlib
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -36,14 +37,15 @@ logging.basicConfig(
 logger = logging.getLogger("authority")
 
 # ----------------------------------------------------------------
-# 数据库连接配置（实际部署时改为读取配置文件 / 环境变量）
+# 数据库连接配置（优先读环境变量，避免把口令写死进源码）
+# 可设置：PO_DB_HOST / PO_DB_PORT / PO_DB_USER / PO_DB_PASSWORD / PO_DB_NAME
 # ----------------------------------------------------------------
 DB_CONFIG: Dict[str, Any] = {
-    "host": "127.0.0.1",
-    "port": 3306,
-    "user": "root",
-    "password": "root",
-    "database": "post_office",
+    "host": os.environ.get("PO_DB_HOST", "127.0.0.1"),
+    "port": int(os.environ.get("PO_DB_PORT", "3306")),
+    "user": os.environ.get("PO_DB_USER", "root"),
+    "password": os.environ.get("PO_DB_PASSWORD", "root"),
+    "database": os.environ.get("PO_DB_NAME", "post_office"),
     "charset": "utf8mb4",
     "cursorclass": DictCursor,
 }
@@ -219,6 +221,9 @@ def init_database() -> None:
                 "VALUES(%s, %s, %s)",
                 (lv["level"], lv["name"], lv["desc"]),
             )
+        # DDL 在 MySQL 中会自动提交，但 INSERT 是 DML，pymysql 默认
+        # autocommit=False，with 连接关闭时不会自动提交 -> 必须显式 commit。
+        conn.commit()
         logger.info("数据库表结构与标准权限等级初始化完成。")
 
 
@@ -362,6 +367,56 @@ class EmployeeService:
             )
             rows = cur.fetchall()
         return {"total": total, "page": page, "size": size, "list": rows}
+
+
+# ================================================================
+# 四点五、个人中心（节点 102：修改密码、查看个人信息）
+# ================================================================
+class ProfileService:
+    """员工个人中心：查看本人信息、修改本人密码。仅作用于本人。"""
+
+    @staticmethod
+    def get_profile(emp_id: int) -> Optional[Dict[str, Any]]:
+        """
+        查看本人信息：基础资料 + 拥有的权限等级 + 最终权限集合。
+        （由命令层 / Web 层保证 emp_id 取自当前登录者本人，防止越权查他人）
+        """
+        emp = EmployeeService.get_employee(emp_id)
+        if not emp:
+            return None
+        emp["levels"] = PermissionService.get_employee_levels(emp_id)
+        emp["permissions"] = PermissionService.get_employee_permissions(emp_id)
+        return emp
+
+    @staticmethod
+    def change_own_password(emp_id: int, old_password: str,
+                            new_password: str) -> int:
+        """
+        修改本人密码：先校验旧密码，再更新为新密码。
+        旧密码错误抛 ValueError；新密码为空抛 ValueError。
+        """
+        if not new_password:
+            raise ValueError("新密码不能为空")
+        emp = EmployeeService.get_employee_by_username(
+            (EmployeeService.get_employee(emp_id) or {}).get("username", ""))
+        if not emp:
+            raise ValueError("账号不存在")
+        if not verify_password(old_password, emp["password"]):
+            raise ValueError("原密码错误")
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE sys_employee SET password=%s WHERE id=%s",
+                (hash_password(new_password), emp_id),
+            )
+            conn.commit()
+            affected = cur.rowcount
+        OperationLogService.record(
+            emp_id, emp.get("real_name") or emp.get("username"),
+            "个人中心", "修改密码", detail={"emp_id": emp_id},
+        )
+        logger.info("员工 id=%s 修改本人密码", emp_id)
+        return affected
 
 
 # ================================================================
