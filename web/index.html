@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>邮局报刊订阅系统</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --primary: #2f6fed; --primary-d: #2555c9; --bg: #f4f6fb;
+    --border: #e2e6ef; --text: #2b2f38; --muted: #7a8296; --ok: #2ca86a; --err: #e04b4b;
+  }
+  body { margin: 0; font-family: "Microsoft YaHei", "Segoe UI", sans-serif; color: var(--text); background: var(--bg); }
+  button { cursor: pointer; font-family: inherit; }
+  input, select, textarea { font-family: inherit; }
+
+  /* 登录页 */
+  #login { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+           background: linear-gradient(135deg, #2f6fed, #6a3fe0); }
+  .login-card { background: #fff; padding: 34px 38px; border-radius: 14px; width: 340px;
+                box-shadow: 0 18px 50px rgba(0,0,0,.25); }
+  .login-card h1 { font-size: 20px; margin: 0 0 4px; text-align: center; }
+  .login-card p.sub { margin: 0 0 22px; text-align: center; color: var(--muted); font-size: 13px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--primary); }
+  .btn { background: var(--primary); color: #fff; border: none; padding: 9px 16px; border-radius: 8px; font-size: 14px; }
+  .btn:hover { background: var(--primary-d); }
+  .btn.block { width: 100%; padding: 11px; }
+  .btn.ghost { background: #fff; color: var(--primary); border: 1px solid var(--primary); }
+  .btn.mini { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+  .btn.gray { background: #eef1f7; color: #444; }
+  .btn.gray:hover { background: #e3e7f0; }
+  .btn.danger { background: var(--err); }
+  .login-err { color: var(--err); font-size: 13px; min-height: 18px; margin-top: 6px; text-align: center; }
+  .base-row { margin-top: 14px; font-size: 12px; color: var(--muted); }
+  .base-row input { width: 100%; margin-top: 4px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 6px; }
+
+  /* 主框架 */
+  #app { display: none; min-height: 100vh; }
+  .topbar { height: 56px; background: #fff; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; padding: 0 20px; position: sticky; top: 0; z-index: 5; }
+  .topbar .logo { font-weight: 700; color: var(--primary); font-size: 17px; }
+  .topbar .spacer { flex: 1; }
+  .topbar .who { font-size: 13px; color: var(--muted); margin-right: 14px; }
+  .layout { display: flex; }
+  .sidebar { width: 210px; background: #fff; border-right: 1px solid var(--border); min-height: calc(100vh - 56px); padding: 10px 0; }
+  .menu-item { padding: 11px 22px; font-size: 14px; color: #444; cursor: pointer; border-left: 3px solid transparent; }
+  .menu-item:hover { background: #f5f7fc; }
+  .menu-item.active { background: #eef3ff; color: var(--primary); border-left-color: var(--primary); font-weight: 600; }
+  .content { flex: 1; padding: 22px 26px; min-width: 0; }
+  .page-title { font-size: 19px; margin: 0 0 4px; }
+  .page-desc { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+  .toolbar input, .toolbar select { padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; }
+
+  .card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 18px; }
+  .card h3 { margin: 0 0 12px; font-size: 15px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; background: #fafbfe; }
+  tr:hover td { background: #fafcff; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+  .tag.on { background: #e4f6ec; color: var(--ok); }
+  .tag.off { background: #fdeaea; color: var(--err); }
+  .tag.info { background: #e9f0ff; color: var(--primary); }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pager { display: flex; gap: 10px; align-items: center; margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .empty { text-align: center; color: var(--muted); padding: 26px; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 12px; }
+  .stat { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .stat .n { font-size: 22px; font-weight: 700; color: var(--primary); }
+  .stat .l { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  /* 弹窗 */
+  #modal { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; z-index: 20; }
+  .modal-card { background: #fff; border-radius: 12px; padding: 22px 24px; width: 420px; max-height: 86vh; overflow: auto; }
+  .modal-card h3 { margin: 0 0 16px; font-size: 16px; }
+  .modal-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+
+  /* 提示 */
+  #toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 50;
+           display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .toast-item { padding: 10px 18px; border-radius: 8px; color: #fff; font-size: 13px; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+  .toast-item.ok { background: var(--ok); }
+  .toast-item.err { background: var(--err); }
+</style>
+</head>
+<body>
+
+<!-- ===================== 登录页 ===================== -->
+<div id="login">
+  <div class="login-card">
+    <h1>邮局报刊订阅系统</h1>
+    <p class="sub">请使用员工账号登录</p>
+    <div class="field"><label>用户名</label><input id="lg-user" value="admin" autocomplete="username" /></div>
+    <div class="field"><label>密码</label><input id="lg-pass" type="password" value="admin123" autocomplete="current-password" /></div>
+    <button class="btn block" onclick="doLogin()">登 录</button>
+    <div class="login-err" id="lg-err"></div>
+    <div class="base-row">后端地址（API Base）
+      <input id="lg-base" value="http://127.0.0.1:8088" />
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 主框架 ===================== -->
+<div id="app">
+  <div class="topbar">
+    <span class="logo">📰 报刊订阅管理平台</span>
+    <span class="spacer"></span>
+    <span class="who" id="who"></span>
+    <button class="btn gray mini" onclick="logout()">退出登录</button>
+  </div>
+  <div class="layout">
+    <div class="sidebar" id="sidebar"></div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<!-- 弹窗 & 提示 -->
+<div id="modal"><div class="modal-card" id="modal-card"></div></div>
+<div id="toast"></div>
+
+<script>
+// ============================================================
+// 全局状态 & 基础工具
+// ============================================================
+const state = { base: "http://127.0.0.1:8088", empId: null, permissions: [], user: null, active: null };
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>"]/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
+
+function toast(msg, isErr){
+  const el = document.createElement("div");
+  el.className = "toast-item " + (isErr ? "err" : "ok");
+  el.textContent = msg;
+  $("toast").appendChild(el);
+  setTimeout(()=>el.remove(), 2600);
+}
+
+// 权限判断（支持 * 与 xxx:* 通配）
+function can(code){
+  const P = state.permissions || [];
+  if (P.includes("*")) return true;
+  if (P.includes(code)) return true;
+  return P.some(p => p.endsWith(":*") && code.startsWith(p.slice(0, -1)));
+}
+
+// 统一请求（自动带 X-Emp-Id）
+async function api(method, path, body){
+  const headers = { "Content-Type": "application/json" };
+  if (state.empId) headers["X-Emp-Id"] = state.empId;
+  let res;
+  try {
+    res = await fetch(state.base + path, {
+      method, headers, body: body ? JSON.stringify(body) : undefined });
+  } catch(e){ throw new Error("无法连接后端，请确认服务已启动且地址正确"); }
+  let data;
+  try { data = await res.json(); } catch(e){ throw new Error("响应解析失败 (HTTP " + res.status + ")"); }
+  if (data.code !== 0) throw new Error(data.msg || ("请求失败 " + data.code));
+  return data.data;
+}
+
+// ============================================================
+// 登录 / 登出
+// ============================================================
+async function doLogin(){
+  state.base = $("lg-base").value.trim().replace(/\/+$/, "");
+  const username = $("lg-user").value.trim();
+  const password = $("lg-pass").value;
+  $("lg-err").textContent = "";
+  try {
+    const res = await fetch(state.base + "/api/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }) });
+    const data = await res.json();
+    if (data.code !== 0){ $("lg-err").textContent = data.msg || "登录失败"; return; }
+    applySession(data.data);
+    localStorage.setItem("po_session", JSON.stringify({ base: state.base, ...data.data }));
+    enterApp();
+  } catch(e){ $("lg-err").textContent = "无法连接后端：" + e.message; }
+}
+
+function applySession(d){
+  state.empId = d.emp_id; state.permissions = d.permissions || []; state.user = d;
+}
+
+function logout(){
+  localStorage.removeItem("po_session");
+  state.empId = null; state.permissions = []; state.user = null;
+  $("app").style.display = "none";
+  $("login").style.display = "flex";
+}
+
+function tryRestore(){
+  const raw = localStorage.getItem("po_session");
+  if (!raw) return;
+  try {
+    const d = JSON.parse(raw);
+    state.base = d.base || state.base;
+    applySession(d);
+    enterApp();
+  } catch(e){ /* 忽略损坏的会话 */ }
+}
+
+// ============================================================
+// 菜单（按权限过滤，节点 52 路由/菜单权限）
+// ============================================================
+const MENUS = [
+  { key: "newspaper",    label: "报刊数据管理", perm: "menu:newspaper" },
+  { key: "category",     label: "报刊分类管理", perm: "menu:category" },
+  { key: "customer",     label: "客户数据管理", perm: "menu:customer" },
+  { key: "subscription", label: "订阅管理",     perm: "menu:subscription" },
+  { key: "substat",      label: "订阅统计",     perm: "menu:subscription" },
+  { key: "stock",        label: "报刊入库管理", perm: "menu:stock" },
+  { key: "delivery",     label: "报刊发放系统", perm: "menu:delivery" },
+  { key: "employee",     label: "员工权限管理", perm: "menu:employee" },
+  { key: "authlevel",    label: "权限等级管理", perm: "menu:authlevel" },
+  { key: "logs",         label: "操作日志",     perm: "menu:log" },
+  { key: "profile",      label: "个人中心",     perm: "*always*" },
+];
+
+function enterApp(){
+  $("login").style.display = "none";
+  $("app").style.display = "block";
+  $("who").textContent = (state.user.real_name || state.user.username) +
+    "（" + (state.user.levels && state.user.levels.length ? state.user.levels.join("/") : "无等级") + "）";
+  renderSidebar();
+}
+
+function renderSidebar(){
+  const sb = $("sidebar"); sb.innerHTML = "";
+  const visible = MENUS.filter(m => m.perm === "*always*" || can(m.perm));
+  if (!visible.length){ sb.innerHTML = '<div class="empty">当前账号无任何可用菜单</div>'; return; }
+  visible.forEach(m => {
+    const d = document.createElement("div");
+    d.className = "menu-item" + (state.active === m.key ? " active" : "");
+    d.textContent = m.label;
+    d.onclick = () => openSection(m.key);
+    sb.appendChild(d);
+  });
+  if (!state.active || !visible.some(m => m.key === state.active)) openSection(visible[0].key);
+}
+
+function openSection(key){
+  state.active = key;
+  renderSidebar();
+  const fn = SECTIONS[key];
+  if (fn) fn();
+}
+
+function setHeader(title, desc){
+  return '<h2 class="page-title">' + esc(title) + '</h2><p class="page-desc">' + esc(desc) + '</p>';
+}
+
+// ============================================================
+// 通用弹窗表单
+// fields: [{ name, label, type(text/number/password/select/textarea/date), required, options:[{value,label}], value }]
+// ============================================================
+function openForm(title, fields, onSubmit){
+  const card = $("modal-card");
+  let html = "<h3>" + esc(title) + "</h3>";
+  fields.forEach(f => {
+    html += '<div class="field"><label>' + esc(f.label) + (f.required ? " *" : "") + "</label>";
+    const v = f.value == null ? "" : f.value;
+    if (f.type === "select"){
+      html += '<select data-name="' + f.name + '">';
+      (f.options || []).forEach(o => {
+        html += '<option value="' + esc(o.value) + '"' + (String(o.value) === String(v) ? " selected" : "") + ">" + esc(o.label) + "</option>";
+      });
+      html += "</select>";
+    } else if (f.type === "textarea"){
+      html += '<textarea rows="3" data-name="' + f.name + '">' + esc(v) + "</textarea>";
+    } else {
+      html += '<input type="' + (f.type || "text") + '" data-name="' + f.name + '" value="' + esc(v) + '" />';
+    }
+    html += "</div>";
+  });
+  html += '<div class="modal-foot"><button class="btn gray" onclick="closeModal()">取消</button>' +
+          '<button class="btn" id="modal-ok">确定</button></div>';
+  card.innerHTML = html;
+  $("modal").style.display = "flex";
+  $("modal-ok").onclick = async () => {
+    const values = {};
+    card.querySelectorAll("[data-name]").forEach(el => {
+      let val = el.value;
+      if (el.type === "number" && val !== "") val = Number(val);
+      values[el.getAttribute("data-name")] = val;
+    });
+    for (const f of fields){
+      if (f.required && (values[f.name] === "" || values[f.name] == null)){
+        toast("请填写：" + f.label, true); return;
+      }
+    }
+    try { await onSubmit(values); closeModal(); }
+    catch(e){ toast(e.message, true); }
+  };
+}
+function closeModal(){ $("modal").style.display = "none"; $("modal-card").innerHTML = ""; }
+
+// ============================================================
+// 通用列表渲染（搜索 + 分页 + 行操作）
+// opts: { title, desc, toolbar:[{label,fn,cls}], filters:[{name,label,type,options}],
+//         columns:[{key,label,render}], load: async(q)=>({total,page,size,list}), actions:(row)=>[{label,fn,cls}] }
+// ============================================================
+function renderList(opts){
+  const c = $("content");
+  let page = 1;
+  const filterState = {};
+  c.innerHTML = setHeader(opts.title, opts.desc || "");
+
+  // 工具栏
+  const bar = document.createElement("div"); bar.className = "toolbar";
+  (opts.filters || []).forEach(f => {
+    if (f.type === "select"){
+      const s = document.createElement("select"); s.dataset.name = f.name;
+      s.innerHTML = (f.options || []).map(o => '<option value="' + esc(o.value) + '">' + esc(o.label) + "</option>").join("");
+      s.onchange = () => { filterState[f.name] = s.value; page = 1; load(); };
+      bar.appendChild(s);
+    } else {
+      const i = document.createElement("input"); i.placeholder = f.label;
+      i.onkeydown = e => { if (e.key === "Enter"){ filterState[f.name] = i.value; page = 1; load(); } };
+      i.onblur = () => { filterState[f.name] = i.value; };
+      bar.appendChild(i);
+    }
+  });
+  if (opts.filters && opts.filters.length){
+    const b = document.createElement("button"); b.className = "btn mini"; b.textContent = "查询";
+    b.onclick = () => { page = 1; load(); }; bar.appendChild(b);
+  }
+  (opts.toolbar || []).forEach(t => {
+    const b = document.createElement("button"); b.className = "btn " + (t.cls || "") + " mini"; b.textContent = t.label;
+    b.onclick = () => t.fn(load); bar.appendChild(b);
+  });
+  c.appendChild(bar);
+
+  const tableWrap = document.createElement("div"); tableWrap.className = "card";
+  c.appendChild(tableWrap);
+
+  async function load(){
+    tableWrap.innerHTML = '<div class="empty">加载中…</div>';
+    try {
+      const res = await opts.load({ ...filterState, page }) || {};
+      const list = res.list || (Array.isArray(res) ? res : []);
+      const total = res.total != null ? res.total : list.length;
+      const size = res.size || list.length || 20;
+      if (!list.length){ tableWrap.innerHTML = '<div class="empty">暂无数据</div>'; return; }
+      let html = "<table><thead><tr>";
+      opts.columns.forEach(col => html += "<th>" + esc(col.label) + "</th>");
+      if (opts.actions) html += "<th>操作</th>";
+      html += "</tr></thead><tbody>";
+      list.forEach((row, idx) => {
+        html += "<tr>";
+        opts.columns.forEach(col => {
+          html += "<td>" + (col.render ? col.render(row) : esc(row[col.key])) + "</td>";
+        });
+        if (opts.actions){
+          html += '<td><div class="actions" data-row="' + idx + '"></div></td>';
+        }
+        html += "</tr>";
+      });
+      html += "</tbody></table>";
+      html += '<div class="pager"><button class="btn gray mini" id="pg-prev">上一页</button>' +
+              '<span>第 ' + page + ' 页 / 共 ' + total + ' 条</span>' +
+              '<button class="btn gray mini" id="pg-next">下一页</button></div>';
+      tableWrap.innerHTML = html;
+      // 绑定行操作
+      if (opts.actions){
+        tableWrap.querySelectorAll(".actions").forEach(div => {
+          const row = list[Number(div.dataset.row)];
+          opts.actions(row).forEach(a => {
+            const b = document.createElement("button");
+            b.className = "btn mini " + (a.cls || "gray"); b.textContent = a.label;
+            b.onclick = () => a.fn(load); div.appendChild(b);
+          });
+        });
+      }
+      $("pg-prev").onclick = () => { if (page > 1){ page--; load(); } };
+      $("pg-next").onclick = () => { if (page * size < total){ page++; load(); } };
+    } catch(e){ tableWrap.innerHTML = '<div class="empty">加载失败：' + esc(e.message) + "</div>"; }
+  }
+  load();
+  return load;
+}
+
+async function confirmDo(msg, fn){
+  if (!confirm(msg)) return;
+  try { await fn(); } catch(e){ toast(e.message, true); }
+}
+
+// ============================================================
+// 各功能页面
+// ============================================================
+const SECTIONS = {};
+const CYCLE_OPTS = [ {value:"",label:"周期"}, {value:"daily",label:"日刊"}, {value:"weekly",label:"周刊"}, {value:"monthly",label:"月刊"}, {value:"quarterly",label:"季刊"} ];
+
+// ---------- 报刊数据管理（节点 38/60/63/64） ----------
+SECTIONS.newspaper = function(){
+  const reload = renderList({
+    title: "报刊数据管理", desc: "报刊信息维护、价格策略、检索（节点 60/63/64）",
+    filters: [ {name:"keyword",label:"名称/编号"},
+      {name:"status",type:"select",options:[{value:"",label:"全部状态"},{value:"1",label:"在售"},{value:"0",label:"停刊"}]} ],
+    toolbar: [ {label:"+ 新增报刊", cls:"", fn: addNewspaper} ],
+    columns: [
+      {key:"id",label:"ID"}, {key:"paper_no",label:"编号"}, {key:"name",label:"名称"},
+      {key:"cn_code",label:"CN号"}, {label:"单价",render:r=>"￥"+(r.unit_price??0)},
+      {label:"折扣",render:r=>r.discount}, {label:"周期",render:r=>esc(r.publish_cycle||"-")},
+      {label:"状态",render:r=> r.status==1?'<span class="tag on">在售</span>':'<span class="tag off">停刊</span>'},
+    ],
+    load: q => api("GET", "/api/newspapers?keyword=" + encodeURIComponent(q.keyword||"") +
+      "&status=" + (q.status||"") + "&page=" + q.page),
+    actions: r => [
+      {label:"编辑", fn: reload=>editNewspaper(r, reload)},
+      {label:"价格", fn: reload=>priceNewspaper(r, reload)},
+      {label: r.status==1?"停刊":"复刊", cls:r.status==1?"danger":"", fn: reload=>confirmDo(
+        (r.status==1?"确认停刊 ":"确认复刊 ")+r.name+"?",
+        async()=>{ await api("PUT","/api/newspapers/"+r.id+"/status",{status:r.status==1?0:1}); toast("已更新"); reload(); })},
+    ],
+  });
+  window._reloadNp = reload;
+};
+function npFields(r){ r = r||{}; return [
+  {name:"paper_no",label:"报刊编号",required:!r.id,value:r.paper_no},
+  {name:"name",label:"名称",required:true,value:r.name},
+  {name:"cn_code",label:"CN号",value:r.cn_code},
+  {name:"category_id",label:"分类ID",type:"number",value:r.category_id},
+  {name:"publish_cycle",label:"出版周期",type:"select",options:CYCLE_OPTS,value:r.publish_cycle},
+  {name:"unit_price",label:"单期价格",type:"number",value:r.unit_price??0},
+  {name:"discount",label:"折扣(0-1)",type:"number",value:r.discount??1},
+  {name:"publisher",label:"出版单位",value:r.publisher},
+  {name:"remark",label:"备注",type:"textarea",value:r.remark},
+]; }
+function addNewspaper(reload){ openForm("新增报刊", npFields(), async v=>{
+  await api("POST","/api/newspapers",v); toast("新增成功"); reload(); }); }
+function editNewspaper(r, reload){ openForm("编辑报刊", npFields(r), async v=>{
+  delete v.paper_no; await api("PUT","/api/newspapers/"+r.id,v); toast("修改成功"); reload(); }); }
+function priceNewspaper(r, reload){ openForm("价格策略 - "+r.name, [
+  {name:"unit_price",label:"单期价格",type:"number",value:r.unit_price},
+  {name:"period_price",label:"整订周期价",type:"number",value:r.period_price},
+  {name:"discount",label:"折扣(0-1)",type:"number",value:r.discount},
+], async v=>{ await api("PUT","/api/newspapers/"+r.id+"/price",v); toast("价格已更新"); reload(); }); }
+
+// ---------- 报刊分类管理（节点 62） ----------
+SECTIONS.category = function(){
+  renderList({
+    title: "报刊分类管理", desc: "树形分类维护（节点 62）",
+    toolbar: [ {label:"+ 新增分类", fn: addCategory} ],
+    columns: [ {key:"id",label:"ID"}, {key:"name",label:"分类名"},
+      {label:"父分类",render:r=> r.parent_id==0?'<span class="tag info">顶级</span>':("#"+r.parent_id)},
+      {key:"sort",label:"排序"} ],
+    load: async q => ({ list: await api("GET","/api/categories"), total: 0 }),
+    actions: r => [
+      {label:"编辑", fn: reload=>openForm("编辑分类",[
+        {name:"name",label:"分类名",required:true,value:r.name},
+        {name:"parent_id",label:"父分类ID(0=顶级)",type:"number",value:r.parent_id},
+        {name:"sort",label:"排序",type:"number",value:r.sort},
+      ], async v=>{ await api("PUT","/api/categories/"+r.id,v); toast("已修改"); reload(); })},
+      {label:"删除", cls:"danger", fn: reload=>confirmDo("确认删除分类 "+r.name+"?",
+        async()=>{ await api("DELETE","/api/categories/"+r.id); toast("已删除"); reload(); })},
+    ],
+  });
+};
+function addCategory(reload){ openForm("新增分类",[
+  {name:"name",label:"分类名",required:true},
+  {name:"parent_id",label:"父分类ID(0=顶级)",type:"number",value:0},
+  {name:"sort",label:"排序",type:"number",value:0},
+], async v=>{ await api("POST","/api/categories",v); toast("新增成功"); reload(); }); }
+
+// ---------- 客户数据管理（节点 68/69/70/71） ----------
+SECTIONS.customer = function(){
+  renderList({
+    title: "客户数据管理", desc: "客户档案、地址、标签、订阅历史（节点 68/69/70/71）",
+    filters: [ {name:"keyword",label:"姓名/编号/手机"},
+      {name:"type",type:"select",options:[{value:"",label:"全部类型"},{value:"personal",label:"个人"},{value:"org",label:"单位"}]},
+      {name:"status",type:"select",options:[{value:"",label:"全部状态"},{value:"1",label:"启用"},{value:"0",label:"停用"}]} ],
+    toolbar: [ {label:"+ 新增客户", fn: addCustomer} ],
+    columns: [ {key:"id",label:"ID"}, {key:"cust_no",label:"编号"}, {key:"name",label:"名称"},
+      {label:"类型",render:r=> r.cust_type=="org"?"单位":"个人"}, {key:"phone",label:"手机"},
+      {label:"等级",render:r=>esc(r.level||"-")},
+      {label:"状态",render:r=> r.status==1?'<span class="tag on">启用</span>':'<span class="tag off">停用</span>'} ],
+    load: q => api("GET","/api/customers?keyword="+encodeURIComponent(q.keyword||"")+
+      "&type="+(q.type||"")+"&status="+(q.status||"")+"&page="+q.page),
+    actions: r => [
+      {label:"编辑", fn: reload=>editCustomer(r, reload)},
+      {label:"地址", fn: ()=>manageAddresses(r)},
+      {label:"标签", fn: ()=>manageTags(r)},
+      {label:"订阅史", fn: ()=>viewSubHistory(r)},
+      {label: r.status==1?"停用":"启用", cls:r.status==1?"danger":"", fn: reload=>confirmDo(
+        "确认"+(r.status==1?"停用":"启用")+r.name+"?",
+        async()=>{ await api("PUT","/api/customers/"+r.id+"/status",{status:r.status==1?0:1}); toast("已更新"); reload(); })},
+    ],
+  });
+};
+function custFields(r){ r=r||{}; return [
+  {name:"cust_no",label:"客户编号",required:!r.id,value:r.cust_no},
+  {name:"cust_type",label:"类型",type:"select",required:true,options:[{value:"personal",label:"个人"},{value:"org",label:"单位"}],value:r.cust_type||"personal"},
+  {name:"name",label:"姓名/单位名",required:true,value:r.name},
+  {name:"phone",label:"手机",value:r.phone},
+  {name:"email",label:"邮箱",value:r.email},
+  {name:"id_card",label:"身份证(个人)",value:r.id_card},
+  {name:"org_code",label:"信用代码(单位)",value:r.org_code},
+  {name:"contact_person",label:"联系人(单位)",value:r.contact_person},
+  {name:"level",label:"客户等级",value:r.level},
+  {name:"remark",label:"备注",type:"textarea",value:r.remark},
+]; }
+function addCustomer(reload){ openForm("新增客户", custFields(), async v=>{
+  await api("POST","/api/customers",v); toast("新增成功"); reload(); }); }
+function editCustomer(r, reload){ openForm("编辑客户", custFields(r), async v=>{
+  delete v.cust_no; await api("PUT","/api/customers/"+r.id,v); toast("已修改"); reload(); }); }
+async function manageAddresses(r){
+  const list = await api("GET","/api/customers/"+r.id+"/addresses");
+  let html = "<h3>"+esc(r.name)+" 的地址</h3>";
+  html += '<div class="card">' + (list.length? "<table><thead><tr><th>收件人</th><th>电话</th><th>地址</th><th>默认</th></tr></thead><tbody>" +
+    list.map(a=>"<tr><td>"+esc(a.recipient)+"</td><td>"+esc(a.phone||"")+"</td><td>"+esc((a.province||"")+(a.city||"")+(a.district||"")+a.detail)+
+    "</td><td>"+(a.is_default==1?'<span class="tag info">默认</span>':"")+"</td></tr>").join("") + "</tbody></table>"
+    : '<div class="empty">暂无地址</div>') + "</div>";
+  html += '<div class="modal-foot"><button class="btn gray" onclick="closeModal()">关闭</button>' +
+          '<button class="btn" id="add-addr">+ 新增地址</button></div>';
+  $("modal-card").innerHTML = html; $("modal").style.display="flex";
+  $("add-addr").onclick = ()=> openForm("新增地址 - "+r.name, [
+    {name:"recipient",label:"收件人",required:true},{name:"phone",label:"电话"},
+    {name:"province",label:"省"},{name:"city",label:"市"},{name:"district",label:"区/县"},
+    {name:"detail",label:"详细地址",required:true},
+    {name:"is_default",label:"设为默认",type:"select",options:[{value:"",label:"否"},{value:"1",label:"是"}]},
+  ], async v=>{ v.is_default = v.is_default==="1"; await api("POST","/api/customers/"+r.id+"/addresses",v); toast("已新增"); manageAddresses(r); });
+}
+async function manageTags(r){
+  const list = await api("GET","/api/customers/"+r.id+"/tags");
+  let html = "<h3>"+esc(r.name)+" 的标签</h3><div class='card'>" +
+    (list.length? list.map(t=>'<span class="tag info" style="margin:3px">'+esc(t.tag_name)+(t.tag_value?("="+esc(t.tag_value)):"")+"</span>").join("") : '<div class="empty">暂无标签</div>') + "</div>";
+  html += '<div class="modal-foot"><button class="btn gray" onclick="closeModal()">关闭</button><button class="btn" id="add-tag">+ 打标签</button></div>';
+  $("modal-card").innerHTML = html; $("modal").style.display="flex";
+  $("add-tag").onclick = ()=> openForm("打标签 - "+r.name,[
+    {name:"tag_name",label:"标签名(如 偏好/财经)",required:true},{name:"tag_value",label:"标签值"},
+  ], async v=>{ await api("POST","/api/customers/"+r.id+"/tags",v); toast("已设置"); manageTags(r); });
+}
+async function viewSubHistory(r){
+  const res = await api("GET","/api/customers/"+r.id+"/subscriptions?page=1");
+  const list = res.list||[];
+  let html = "<h3>"+esc(r.name)+" 的订阅历史</h3><div class='card'>" +
+    (list.length? "<table><thead><tr><th>单号</th><th>报刊ID</th><th>金额</th><th>状态</th></tr></thead><tbody>"+
+      list.map(s=>"<tr><td>"+esc(s.sub_no)+"</td><td>"+esc(s.newspaper_id)+"</td><td>￥"+esc(s.amount)+"</td><td>"+esc(s.status)+"</td></tr>").join("")+"</tbody></table>"
+      : '<div class="empty">暂无订阅记录</div>') + "</div>";
+  html += '<div class="modal-foot"><button class="btn gray" onclick="closeModal()">关闭</button></div>';
+  $("modal-card").innerHTML = html; $("modal").style.display="flex";
+}
+
+// ---------- 订阅管理（节点 76/77/78） ----------
+SECTIONS.subscription = function(){
+  renderList({
+    title: "订阅管理", desc: "新建订阅、退订/换订、续订提醒（节点 76/77/78）",
+    filters: [ {name:"customer_id",label:"客户ID"}, {name:"newspaper_id",label:"报刊ID"},
+      {name:"status",type:"select",options:[{value:"",label:"全部状态"},{value:"active",label:"有效"},{value:"cancelled",label:"已退订"},{value:"changed",label:"已换订"},{value:"expired",label:"已到期"}]} ],
+    toolbar: [ {label:"+ 新建订阅", fn: addSub}, {label:"续订提醒", cls:"gray", fn: viewExpiring} ],
+    columns: [ {key:"id",label:"ID"}, {key:"sub_no",label:"单号"}, {key:"customer_id",label:"客户"},
+      {key:"newspaper_id",label:"报刊"}, {key:"start_date",label:"起"}, {key:"end_date",label:"止"},
+      {label:"金额",render:r=>"￥"+esc(r.amount)},
+      {label:"状态",render:r=>'<span class="tag '+(r.status=="active"?"on":"off")+'">'+esc(r.status)+"</span>"} ],
+    load: q => api("GET","/api/subscriptions?customer_id="+(q.customer_id||"")+
+      "&newspaper_id="+(q.newspaper_id||"")+"&status="+(q.status||"")+"&page="+q.page),
+    actions: r => (r.status=="active" ? [
+      {label:"退订", cls:"danger", fn: reload=>confirmDo("确认退订 "+r.sub_no+"?（按剩余天数退款）",
+        async()=>{ const d=await api("POST","/api/subscriptions/"+r.id+"/cancel",{}); toast("退订成功，退款 ￥"+d.refund); reload(); })},
+      {label:"换订", fn: reload=>openForm("换订 - "+r.sub_no,[{name:"new_newspaper_id",label:"新报刊ID",type:"number",required:true}],
+        async v=>{ await api("POST","/api/subscriptions/"+r.id+"/change",v); toast("换订成功"); reload(); })},
+    ] : []),
+  });
+};
+function addSub(reload){ openForm("新建订阅",[
+  {name:"customer_id",label:"客户ID",type:"number",required:true},
+  {name:"newspaper_id",label:"报刊ID",type:"number",required:true},
+  {name:"start_date",label:"起订日期",type:"date",required:true},
+  {name:"end_date",label:"终止日期",type:"date",required:true},
+  {name:"periods",label:"期数",type:"number",required:true},
+  {name:"address_id",label:"投递地址ID(可空)",type:"number"},
+  {name:"remark",label:"备注",type:"textarea"},
+], async v=>{ await api("POST","/api/subscriptions",v); toast("新建成功"); reload(); }); }
+async function viewExpiring(){
+  const list = await api("GET","/api/subscriptions/expiring?days=7");
+  let html = "<h3>7 天内到期的订阅</h3><div class='card'>" +
+    (list.length? "<table><thead><tr><th>单号</th><th>客户</th><th>报刊</th><th>到期日</th></tr></thead><tbody>"+
+      list.map(s=>"<tr><td>"+esc(s.sub_no)+"</td><td>"+esc(s.customer_name||s.customer_id)+"</td><td>"+esc(s.newspaper_name||s.newspaper_id)+"</td><td>"+esc(s.end_date)+"</td></tr>").join("")+"</tbody></table>"
+      : '<div class="empty">近期无到期订阅</div>') + "</div>";
+  html += '<div class="modal-foot"><button class="btn gray" onclick="closeModal()">关闭</button></div>';
+  $("modal-card").innerHTML=html; $("modal").style.display="flex";
+}
+
+// ---------- 订阅统计（节点 79） ----------
+SECTIONS.substat = async function(){
+  const c = $("content");
+  c.innerHTML = setHeader("订阅统计", "按报刊 / 客户类型多维统计（节点 79）");
+  try {
+    const byNp = await api("GET","/api/subscriptions/stat/newspaper");
+    const byType = await api("GET","/api/subscriptions/stat/customer-type");
+    let html = '<div class="card"><h3>按报刊统计</h3>';
+    html += byNp.length? "<table><thead><tr><th>报刊</th><th>订阅数</th><th>总金额</th></tr></thead><tbody>"+
+      byNp.map(x=>"<tr><td>"+esc(x.newspaper_name||x.newspaper_id)+"</td><td>"+esc(x.subscription_count)+"</td><td>￥"+esc(x.total_amount||0)+"</td></tr>").join("")+"</tbody></table>" : '<div class="empty">暂无数据</div>';
+    html += "</div>";
+    html += '<div class="card"><h3>按客户类型统计</h3>';
+    html += byType.length? "<table><thead><tr><th>类型</th><th>订阅数</th><th>总金额</th></tr></thead><tbody>"+
+      byType.map(x=>"<tr><td>"+(x.cust_type=="org"?"单位":(x.cust_type=="personal"?"个人":esc(x.cust_type||"未知")))+"</td><td>"+esc(x.subscription_count)+"</td><td>￥"+esc(x.total_amount||0)+"</td></tr>").join("")+"</tbody></table>" : '<div class="empty">暂无数据</div>';
+    html += "</div>";
+    c.innerHTML += html;
+  } catch(e){ c.innerHTML += '<div class="empty">加载失败：'+esc(e.message)+"</div>"; }
+};
+
+// ---------- 报刊入库管理（节点 84/85/86/87） ----------
+SECTIONS.stock = function(){
+  renderList({
+    title: "报刊入库管理", desc: "入库登记、库存预警、盘点（节点 84/85/86/87）",
+    filters: [ {name:"newspaper_id",label:"报刊ID"},
+      {name:"only_warning",type:"select",options:[{value:"",label:"全部库存"},{value:"1",label:"仅预警"}]} ],
+    toolbar: [ {label:"+ 入库登记", fn: stockIn}, {label:"库存盘点", cls:"gray", fn: stockCheck},
+      {label:"预警清单", cls:"gray", fn: stockWarning}, {label:"入库流水", cls:"gray", fn: stockInLog} ],
+    columns: [ {key:"newspaper_id",label:"报刊ID"}, {label:"报刊",render:r=>esc(r.newspaper_name||"-")},
+      {key:"issue_no",label:"期号"}, {key:"quantity",label:"库存"}, {key:"threshold",label:"阈值"},
+      {label:"状态",render:r=> r.quantity<=r.threshold?'<span class="tag off">预警</span>':'<span class="tag on">正常</span>'} ],
+    load: q => api("GET","/api/stock?newspaper_id="+(q.newspaper_id||"")+"&only_warning="+(q.only_warning||"")+"&page="+q.page),
+    actions: r => [
+      {label:"阈值", fn: reload=>openForm("设置阈值",[
+        {name:"threshold",label:"预警阈值",type:"number",required:true,value:r.threshold}],
+        async v=>{ await api("PUT","/api/stock/threshold",{newspaper_id:r.newspaper_id,issue_no:r.issue_no,threshold:v.threshold}); toast("已设置"); reload(); })},
+      {label:"盘点", fn: reload=>openForm("盘点 - "+r.newspaper_id+"/"+r.issue_no,[
+        {name:"actual_qty",label:"实盘数量",type:"number",required:true,value:r.quantity},{name:"remark",label:"备注"}],
+        async v=>{ const d=await api("POST","/api/stock/check",{newspaper_id:r.newspaper_id,issue_no:r.issue_no,actual_qty:v.actual_qty,remark:v.remark}); toast("盘点完成，差异 "+d.diff); reload(); })},
+    ],
+  });
+};
+function stockIn(reload){ openForm("入库登记",[
+  {name:"newspaper_id",label:"报刊ID",type:"number",required:true},
+  {name:"issue_no",label:"期号",required:true},
+  {name:"quantity",label:"入库数量",type:"number",required:true},
+  {name:"threshold",label:"预警阈值(可空)",type:"number"},
+], async v=>{ const d=await api("POST","/api/stock/in",v); toast("入库成功，当前库存 "+d.current_qty); reload&&reload(); }); }
+function stockCheck(reload){ openForm("库存盘点",[
+  {name:"newspaper_id",label:"报刊ID",type:"number",required:true},
+  {name:"issue_no",label:"期号",required:true},
+  {name:"actual_qty",label:"实盘数量",type:"number",required:true},
+  {name:"remark",label:"备注"},
+], async v=>{ const d=await api("POST","/api/stock/check",v); toast("盘点完成，差异 "+d.diff); reload&&reload(); }); }
+async function stockWarning(){
+  const list = await api("GET","/api/stock/warning");
+  let html="<h3>库存预警清单</h3><div class='card'>"+
+    (list.length? "<table><thead><tr><th>报刊</th><th>期号</th><th>库存</th><th>阈值</th></tr></thead><tbody>"+
+      list.map(s=>"<tr><td>"+esc(s.newspaper_name||s.newspaper_id)+"</td><td>"+esc(s.issue_no)+"</td><td>"+esc(s.quantity)+"</td><td>"+esc(s.threshold)+"</td></tr>").join("")+"</tbody></table>"
+      : '<div class="empty">无预警库存</div>')+"</div>";
+  html+='<div class="modal-foot"><button class="btn gray" onclick="closeModal()">关闭</button></div>';
+  $("modal-card").innerHTML=html; $("modal").style.display="flex";
+}
+async function stockInLog(){
+  const res = await api("GET","/api/stock/in?page=1");
+  const list=res.list||[];
+  let html="<h3>入库流水（最近）</h3><div class='card'>"+
+    (list.length? "<table><thead><tr><th>报刊</th><th>期号</th><th>数量</th><th>操作人</th><th>时间</th></tr></thead><tbody>"+
+      list.map(s=>"<tr><td>"+esc(s.newspaper_name||s.newspaper_id)+"</td><td>"+esc(s.issue_no)+"</td><td>+"+esc(s.quantity)+"</td><td>"+esc(s.operator_name||"")+"</td><td>"+esc(s.create_time)+"</td></tr>").join("")+"</tbody></table>"
+      : '<div class="empty">暂无流水</div>')+"</div>";
+  html+='<div class="modal-foot"><button class="btn gray" onclick="closeModal()">关闭</button></div>';
+  $("modal-card").innerHTML=html; $("modal").style.display="flex";
+}
+
+// ---------- 报刊发放系统（节点 92/93/94/95） ----------
+SECTIONS.delivery = function(){
+  renderList({
+    title: "报刊发放系统", desc: "任务生成、派送员分配、签收、缺刊处理（节点 92/93/94/95）",
+    filters: [ {name:"deliver_date",label:"发放日期 YYYY-MM-DD"},
+      {name:"status",type:"select",options:[{value:"",label:"全部状态"},{value:"pending",label:"待派送"},{value:"assigned",label:"已分配"},{value:"signed",label:"已签收"},{value:"abnormal",label:"异常"},{value:"missing",label:"缺刊"}]} ],
+    toolbar: [ {label:"生成当日任务", fn: genTasks}, {label:"按区域分配", cls:"gray", fn: assignTasks},
+      {label:"缺刊清单", cls:"gray", fn: missingList} ],
+    columns: [ {key:"id",label:"ID"}, {key:"task_no",label:"任务号"}, {key:"customer_id",label:"客户"},
+      {key:"newspaper_id",label:"报刊"}, {label:"区域",render:r=>esc(r.district||"-")},
+      {label:"派送员",render:r=>esc(r.courier_name||"-")}, {key:"deliver_date",label:"发放日"},
+      {label:"状态",render:r=>'<span class="tag '+(r.status=="signed"?"on":(r.status=="pending"||r.status=="assigned"?"info":"off"))+'">'+esc(r.status)+"</span>"} ],
+    load: q => api("GET","/api/delivery/tasks?deliver_date="+(q.deliver_date||"")+"&status="+(q.status||"")+"&page="+q.page),
+    actions: r => {
+      const acts = [];
+      if (r.status=="pending"||r.status=="assigned"){
+        acts.push({label:"签收", cls:"", fn: reload=>confirmDo("确认签收 "+r.task_no+"?",
+          async()=>{ await api("POST","/api/delivery/tasks/"+r.id+"/sign",{}); toast("已签收"); reload(); })});
+        acts.push({label:"异常", cls:"danger", fn: reload=>openForm("异常上报",[{name:"remark",label:"异常说明",required:true}],
+          async v=>{ await api("POST","/api/delivery/tasks/"+r.id+"/abnormal",v); toast("已上报"); reload(); })});
+        acts.push({label:"缺刊", cls:"gray", fn: reload=>openForm("缺刊登记",[{name:"reason",label:"缺刊原因",required:true}],
+          async v=>{ await api("POST","/api/delivery/missing",{task_id:r.id,reason:v.reason}); toast("已登记缺刊"); reload(); })});
+      }
+      return acts;
+    },
+  });
+};
+function genTasks(reload){ openForm("生成当日发放任务",[
+  {name:"deliver_date",label:"发放日期",type:"date",required:true}],
+  async v=>{ const d=await api("POST","/api/delivery/tasks/generate",v); toast("生成完成：新建 "+d.created+"，跳过 "+d.skipped); reload&&reload(); }); }
+function assignTasks(reload){ openForm("按区域分配派送员",[
+  {name:"deliver_date",label:"发放日期",type:"date",required:true},
+  {name:"mapping",label:'区域->员工ID (JSON)，如 {"朝阳区":2,"海淀区":3}',type:"textarea",required:true},
+], async v=>{ let m; try{ m=JSON.parse(v.mapping);}catch(e){ throw new Error("mapping 不是合法 JSON"); }
+  const d=await api("POST","/api/delivery/tasks/assign",{deliver_date:v.deliver_date,mapping:m});
+  toast("分配完成：" + JSON.stringify(d)); reload&&reload(); }); }
+async function missingList(){
+  const res = await api("GET","/api/delivery/missing?page=1");
+  const list=res.list||[];
+  let html="<h3>缺刊清单</h3><div class='card'>"+
+    (list.length? "<table><thead><tr><th>ID</th><th>任务</th><th>报刊</th><th>原因</th><th>状态</th><th>补发</th></tr></thead><tbody>"+
+      list.map(m=>"<tr><td>"+esc(m.id)+"</td><td>"+esc(m.task_id)+"</td><td>"+esc(m.newspaper_id)+"</td><td>"+esc(m.reason||"")+"</td><td>"+esc(m.status)+"</td><td>"+
+      (m.status=="open"?'<button class="btn mini" data-mid="'+m.id+'">补发</button>':(m.reissue_task_id||"-"))+"</td></tr>").join("")+"</tbody></table>"
+      : '<div class="empty">暂无缺刊</div>')+"</div>";
+  html+='<div class="modal-foot"><button class="btn gray" onclick="closeModal()">关闭</button></div>';
+  $("modal-card").innerHTML=html; $("modal").style.display="flex";
+  $("modal-card").querySelectorAll("[data-mid]").forEach(b=> b.onclick=()=> openForm("补发 - 缺刊#"+b.dataset.mid,[
+    {name:"deliver_date",label:"补发日期",type:"date",required:true}],
+    async v=>{ await api("POST","/api/delivery/missing/"+b.dataset.mid+"/reissue",v); toast("补发任务已生成"); missingList(); }));
+}
+
+// ---------- 员工权限管理（节点 100/101） ----------
+SECTIONS.employee = function(){
+  renderList({
+    title: "员工权限管理", desc: "员工 CRUD、等级与权限分配（节点 100/101，需超级管理员）",
+    filters: [ {name:"keyword",label:"用户名/姓名/工号"},
+      {name:"status",type:"select",options:[{value:"",label:"全部状态"},{value:"1",label:"启用"},{value:"0",label:"停用"}]} ],
+    toolbar: [ {label:"+ 新增员工", fn: addEmployee} ],
+    columns: [ {key:"id",label:"ID"}, {key:"emp_no",label:"工号"}, {key:"username",label:"用户名"},
+      {key:"real_name",label:"姓名"}, {key:"phone",label:"手机"},
+      {label:"状态",render:r=> r.status==1?'<span class="tag on">启用</span>':'<span class="tag off">停用</span>'} ],
+    load: q => api("GET","/api/employees?keyword="+encodeURIComponent(q.keyword||"")+"&status="+(q.status||"")+"&page="+q.page),
+    actions: r => [
+      {label:"编辑", fn: reload=>openForm("编辑员工",[
+        {name:"real_name",label:"姓名",value:r.real_name},{name:"phone",label:"手机",value:r.phone}],
+        async v=>{ await api("PUT","/api/employees/"+r.id,v); toast("已修改"); reload(); })},
+      {label:"等级", fn: ()=>manageLevels(r)},
+      {label:"改密", fn: ()=>openForm("重置密码 - "+r.username,[{name:"password",label:"新密码",required:true}],
+        async v=>{ await api("PUT","/api/employees/"+r.id+"/password",v); toast("已重置"); })},
+      {label: r.status==1?"停用":"启用", cls:r.status==1?"danger":"", fn: reload=>confirmDo("确认"+(r.status==1?"停用":"启用")+r.username+"?",
+        async()=>{ await api("PUT","/api/employees/"+r.id+"/status",{status:r.status==1?0:1}); toast("已更新"); reload(); })},
+      {label:"删除", cls:"danger", fn: reload=>confirmDo("确认删除员工 "+r.username+"?",
+        async()=>{ await api("DELETE","/api/employees/"+r.id); toast("已删除"); reload(); })},
+    ],
+  });
+};
+function addEmployee(reload){ openForm("新增员工",[
+  {name:"emp_no",label:"工号",required:true},{name:"username",label:"用户名",required:true},
+  {name:"password",label:"密码",required:true},{name:"real_name",label:"姓名"},{name:"phone",label:"手机"},
+], async v=>{ await api("POST","/api/employees",v); toast("新增成功"); reload(); }); }
+async function manageLevels(r){
+  const levels = await api("GET","/api/employees/"+r.id+"/levels");
+  const all = await api("GET","/api/auth-levels");
+  let html = "<h3>"+esc(r.username)+" 的权限等级</h3><div class='card'>"+
+    (levels.length? levels.map(l=>'<span class="tag info" style="margin:3px">'+esc(l)+' <a href="#" data-rv="'+esc(l)+'" style="color:#e04b4b;text-decoration:none">✕</a></span>').join("") : '<div class="empty">未分配等级</div>')+"</div>";
+  html += '<div class="field"><label>分配新等级</label><select id="lv-sel">'+
+    all.map(a=>'<option value="'+esc(a.level)+'">'+esc(a.level)+" - "+esc(a.name)+"</option>").join("")+"</select></div>";
+  html += '<div class="modal-foot"><button class="btn gray" onclick="closeModal()">关闭</button><button class="btn" id="lv-add">分配</button></div>';
+  $("modal-card").innerHTML=html; $("modal").style.display="flex";
+  $("lv-add").onclick = async()=>{ try{ await api("POST","/api/employees/"+r.id+"/levels",{level:$("lv-sel").value}); toast("已分配"); manageLevels(r);}catch(e){toast(e.message,true);} };
+  $("modal-card").querySelectorAll("[data-rv]").forEach(a=> a.onclick=async e=>{ e.preventDefault();
+    try{ await api("DELETE","/api/employees/"+r.id+"/levels/"+a.dataset.rv); toast("已撤销"); manageLevels(r);}catch(err){toast(err.message,true);} });
+}
+
+// ---------- 权限等级管理（节点 20-25 / 101） ----------
+SECTIONS.authlevel = function(){
+  renderList({
+    title: "权限等级管理", desc: "标准等级 O5~O0 与自定义等级（节点 20-25/101）",
+    toolbar: [ {label:"+ 新建等级", fn: reload=>openForm("新建权限等级",[
+      {name:"level",label:"等级编码",required:true},{name:"name",label:"名称",required:true},{name:"desc",label:"描述"}],
+      async v=>{ await api("POST","/api/auth-levels",v); toast("已创建"); reload(); })} ],
+    columns: [ {key:"level",label:"编码"}, {key:"name",label:"名称"}, {key:"desc",label:"描述"} ],
+    load: async q => ({ list: await api("GET","/api/auth-levels"), total: 0 }),
+  });
+};
+
+// ---------- 操作日志（节点 103） ----------
+SECTIONS.logs = function(){
+  renderList({
+    title: "操作日志", desc: "全系统操作审计（节点 103）",
+    filters: [ {name:"emp_id",label:"操作人ID"}, {name:"module",label:"模块"} ],
+    columns: [ {key:"id",label:"ID"}, {key:"emp_name",label:"操作人"}, {key:"module",label:"模块"},
+      {key:"action",label:"操作"}, {label:"详情",render:r=>'<span style="color:#7a8296">'+esc((r.detail||"").slice(0,60))+"</span>"},
+      {key:"create_time",label:"时间"} ],
+    load: q => api("GET","/api/logs?emp_id="+(q.emp_id||"")+"&module="+encodeURIComponent(q.module||"")+"&page="+q.page),
+  });
+};
+
+// ---------- 个人中心（节点 102） ----------
+SECTIONS.profile = async function(){
+  const c = $("content");
+  c.innerHTML = setHeader("个人中心", "查看本人信息、修改本人密码（节点 102）");
+  try {
+    const p = await api("GET","/api/profile");
+    let html = '<div class="card"><h3>基础信息</h3><table><tbody>' +
+      "<tr><th>员工ID</th><td>"+esc(p.id)+"</td></tr>"+
+      "<tr><th>工号</th><td>"+esc(p.emp_no)+"</td></tr>"+
+      "<tr><th>用户名</th><td>"+esc(p.username)+"</td></tr>"+
+      "<tr><th>姓名</th><td>"+esc(p.real_name||"-")+"</td></tr>"+
+      "<tr><th>手机</th><td>"+esc(p.phone||"-")+"</td></tr>"+
+      "<tr><th>权限等级</th><td>"+esc((p.levels||[]).join(" / ")||"无")+"</td></tr>"+
+      "</tbody></table></div>";
+    html += '<div class="card"><h3>拥有权限</h3><div>' +
+      ((p.permissions||[]).map(x=>'<span class="tag info" style="margin:3px">'+esc(x)+"</span>").join("")||"无") + "</div></div>";
+    html += '<button class="btn" id="pf-pwd">修改密码</button>';
+    c.innerHTML += html;
+    $("pf-pwd").onclick = ()=> openForm("修改密码",[
+      {name:"old_password",label:"原密码",type:"password",required:true},
+      {name:"new_password",label:"新密码",type:"password",required:true},
+    ], async v=>{ await api("PUT","/api/profile/password",v); toast("密码已修改"); });
+  } catch(e){ c.innerHTML += '<div class="empty">加载失败：'+esc(e.message)+"</div>"; }
+};
+
+// ============================================================
+// 启动
+// ============================================================
+$("lg-pass").addEventListener("keydown", e=>{ if(e.key==="Enter") doLogin(); });
+tryRestore();
+</script>
+</body>
+</html>

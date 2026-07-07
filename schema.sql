@@ -177,5 +177,200 @@ INSERT INTO `sys_employee_level`(`emp_id`, `level`)
 SELECT id, 'O5' FROM `sys_employee` WHERE username='admin';
 
 -- ================================================================
+-- 业务模块表（与各 Python 模块 INIT_SQL_LIST 保持一致）
+-- 各模块启动时会自动 CREATE TABLE IF NOT EXISTS，此处集中列出便于手动建库
+-- ================================================================
+
+-- ---------- 客户数据管理（customer.py：节点 68 / 69 / 70） ----------
+CREATE TABLE IF NOT EXISTS `biz_customer` (
+    `id`           BIGINT       NOT NULL AUTO_INCREMENT COMMENT '客户ID',
+    `cust_no`      VARCHAR(32)  NOT NULL COMMENT '客户编号(业务唯一)',
+    `cust_type`    VARCHAR(16)  NOT NULL COMMENT 'personal个人 / org单位',
+    `name`         VARCHAR(128) NOT NULL COMMENT '姓名或单位名称',
+    `id_card`      VARCHAR(32)  DEFAULT NULL COMMENT '身份证号(个人)',
+    `org_code`     VARCHAR(64)  DEFAULT NULL COMMENT '统一社会信用代码(单位)',
+    `contact_person` VARCHAR(64) DEFAULT NULL COMMENT '联系人(单位)',
+    `phone`        VARCHAR(20)  DEFAULT NULL COMMENT '手机号',
+    `email`        VARCHAR(128) DEFAULT NULL COMMENT '邮箱',
+    `password`     VARCHAR(128) DEFAULT NULL COMMENT '登录密码(加盐MD5, 可空)',
+    `level`        VARCHAR(8)   DEFAULT NULL COMMENT '客户等级(如VIP/普通)',
+    `status`       TINYINT      NOT NULL DEFAULT 1 COMMENT '1启用 0停用',
+    `remark`       VARCHAR(255) DEFAULT NULL COMMENT '备注',
+    `create_time`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_cust_no` (`cust_no`),
+    KEY `idx_cust_type` (`cust_type`),
+    KEY `idx_phone` (`phone`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客户档案表';
+
+CREATE TABLE IF NOT EXISTS `biz_customer_address` (
+    `id`          BIGINT       NOT NULL AUTO_INCREMENT,
+    `customer_id` BIGINT       NOT NULL COMMENT '所属客户ID',
+    `recipient`   VARCHAR(64)  NOT NULL COMMENT '收件人',
+    `phone`       VARCHAR(20)  DEFAULT NULL COMMENT '收件人电话',
+    `province`    VARCHAR(64)  DEFAULT NULL COMMENT '省',
+    `city`        VARCHAR(64)  DEFAULT NULL COMMENT '市',
+    `district`    VARCHAR(64)  DEFAULT NULL COMMENT '区/县',
+    `detail`      VARCHAR(255) NOT NULL COMMENT '详细地址',
+    `is_default`  TINYINT      NOT NULL DEFAULT 0 COMMENT '1默认地址 0否',
+    `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_customer` (`customer_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客户地址表';
+
+CREATE TABLE IF NOT EXISTS `biz_customer_tag` (
+    `id`         BIGINT       NOT NULL AUTO_INCREMENT,
+    `customer_id` BIGINT      NOT NULL COMMENT '所属客户ID',
+    `tag_name`   VARCHAR(64)  NOT NULL COMMENT '标签名(偏好/订阅需求)',
+    `tag_value`  VARCHAR(128) DEFAULT NULL COMMENT '标签值',
+    `create_time` DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_cust_tag` (`customer_id`, `tag_name`),
+    KEY `idx_customer` (`customer_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客户标签表';
+
+-- ---------- 报刊数据管理（newspaper.py：节点 60 / 62 / 63 / 64） ----------
+CREATE TABLE IF NOT EXISTS `biz_category` (
+    `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '分类ID',
+    `name`        VARCHAR(64)  NOT NULL COMMENT '分类名',
+    `parent_id`   BIGINT       NOT NULL DEFAULT 0 COMMENT '父分类ID，0=顶级',
+    `sort`        INT          NOT NULL DEFAULT 0 COMMENT '排序',
+    `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_parent` (`parent_id`),
+    KEY `idx_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='报刊分类表';
+
+CREATE TABLE IF NOT EXISTS `biz_newspaper` (
+    `id`            BIGINT       NOT NULL AUTO_INCREMENT COMMENT '报刊ID',
+    `paper_no`      VARCHAR(32)  NOT NULL COMMENT '报刊编号，业务唯一',
+    `name`          VARCHAR(128) NOT NULL COMMENT '报刊名称',
+    `cn_code`       VARCHAR(32)  DEFAULT NULL COMMENT 'CN号',
+    `category_id`   BIGINT       DEFAULT NULL COMMENT '分类ID',
+    `publish_cycle` VARCHAR(16)  DEFAULT NULL COMMENT 'daily/weekly/monthly/quarterly',
+    `unit_price`    DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '单期价格',
+    `period_price`  DECIMAL(10,2) DEFAULT NULL COMMENT '整订周期价',
+    `discount`      DECIMAL(5,2) NOT NULL DEFAULT 1.00 COMMENT '折扣系数，范围0-1',
+    `publisher`     VARCHAR(128) DEFAULT NULL COMMENT '出版单位',
+    `status`        TINYINT      NOT NULL DEFAULT 1 COMMENT '1=在售，0=停刊',
+    `remark`        VARCHAR(255) DEFAULT NULL COMMENT '备注',
+    `create_time`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_paper_no` (`paper_no`),
+    KEY `idx_category` (`category_id`),
+    KEY `idx_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='报刊信息表';
+
+-- ---------- 订阅管理（subscription.py：节点 76 / 77 / 78 / 79） ----------
+CREATE TABLE IF NOT EXISTS `biz_subscription` (
+    `id`           BIGINT        NOT NULL AUTO_INCREMENT COMMENT '订阅ID',
+    `sub_no`       VARCHAR(32)   NOT NULL COMMENT '订阅单号',
+    `customer_id`  BIGINT        NOT NULL COMMENT '客户ID',
+    `newspaper_id` BIGINT        NOT NULL COMMENT '报刊ID',
+    `address_id`   BIGINT        DEFAULT NULL COMMENT '投递地址ID',
+    `start_date`   DATE          NOT NULL COMMENT '起订日期',
+    `end_date`     DATE          NOT NULL COMMENT '终止日期',
+    `periods`      INT           NOT NULL DEFAULT 0 COMMENT '期数',
+    `unit_price`   DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '下单时单价',
+    `discount`     DECIMAL(5,2)  NOT NULL DEFAULT 1.00 COMMENT '折扣',
+    `amount`       DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '应付总额',
+    `status`       VARCHAR(16)   NOT NULL DEFAULT 'active' COMMENT 'active有效/cancelled退订/changed换订/expired到期',
+    `remark`       VARCHAR(255)  DEFAULT NULL COMMENT '备注',
+    `create_time`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_sub_no` (`sub_no`),
+    KEY `idx_customer` (`customer_id`),
+    KEY `idx_newspaper` (`newspaper_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_end_date` (`end_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订阅表';
+
+-- ---------- 报刊入库管理（stock.py：节点 84 / 85 / 86 / 87） ----------
+CREATE TABLE IF NOT EXISTS `biz_stock` (
+    `id`           BIGINT      NOT NULL AUTO_INCREMENT COMMENT '库存ID',
+    `newspaper_id` BIGINT      NOT NULL COMMENT '报刊ID',
+    `issue_no`     VARCHAR(32) NOT NULL COMMENT '期号',
+    `quantity`     INT         NOT NULL DEFAULT 0 COMMENT '当前库存',
+    `threshold`    INT         NOT NULL DEFAULT 0 COMMENT '预警阈值',
+    `update_time`  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_paper_issue` (`newspaper_id`, `issue_no`),
+    KEY `idx_paper` (`newspaper_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='库存快照表';
+
+CREATE TABLE IF NOT EXISTS `biz_stock_in` (
+    `id`            BIGINT      NOT NULL AUTO_INCREMENT COMMENT '入库流水ID',
+    `newspaper_id`  BIGINT      NOT NULL COMMENT '报刊ID',
+    `issue_no`      VARCHAR(32) NOT NULL COMMENT '期号',
+    `quantity`      INT         NOT NULL COMMENT '本次入库数量',
+    `operator_id`   BIGINT      DEFAULT NULL COMMENT '操作人ID',
+    `operator_name` VARCHAR(64) DEFAULT NULL COMMENT '操作人姓名',
+    `create_time`   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_paper` (`newspaper_id`),
+    KEY `idx_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='入库流水表';
+
+CREATE TABLE IF NOT EXISTS `biz_stock_check` (
+    `id`            BIGINT       NOT NULL AUTO_INCREMENT COMMENT '盘点记录ID',
+    `newspaper_id`  BIGINT       NOT NULL COMMENT '报刊ID',
+    `issue_no`      VARCHAR(32)  NOT NULL COMMENT '期号',
+    `system_qty`    INT          NOT NULL COMMENT '系统库存',
+    `actual_qty`    INT          NOT NULL COMMENT '实盘库存',
+    `diff`          INT          NOT NULL COMMENT '差异=实盘-系统',
+    `remark`        VARCHAR(255) DEFAULT NULL COMMENT '备注',
+    `operator_id`   BIGINT       DEFAULT NULL COMMENT '操作人ID',
+    `operator_name` VARCHAR(64)  DEFAULT NULL COMMENT '操作人姓名',
+    `create_time`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_paper` (`newspaper_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='库存盘点记录表';
+
+-- ---------- 报刊发放系统（delivery.py：节点 92 / 93 / 94 / 95） ----------
+CREATE TABLE IF NOT EXISTS `biz_delivery_task` (
+    `id`              BIGINT       NOT NULL AUTO_INCREMENT COMMENT '任务ID',
+    `task_no`         VARCHAR(40)  NOT NULL COMMENT '任务单号(业务唯一)',
+    `subscription_id` BIGINT       DEFAULT NULL COMMENT '订阅ID',
+    `customer_id`     BIGINT       NOT NULL COMMENT '客户ID',
+    `newspaper_id`    BIGINT       NOT NULL COMMENT '报刊ID',
+    `address_id`      BIGINT       DEFAULT NULL COMMENT '投递地址ID',
+    `district`        VARCHAR(64)  DEFAULT NULL COMMENT '区域(冗余便于分配)',
+    `courier_id`      BIGINT       DEFAULT NULL COMMENT '派送员(sys_employee.id)',
+    `courier_name`    VARCHAR(64)  DEFAULT NULL COMMENT '派送员名称',
+    `deliver_date`    DATE         NOT NULL COMMENT '发放日期',
+    `status`          VARCHAR(16)  NOT NULL DEFAULT 'pending' COMMENT 'pending待派送/assigned已分配/signed已签收/abnormal异常/missing缺刊',
+    `sign_time`       DATETIME     DEFAULT NULL COMMENT '签收时间',
+    `remark`          VARCHAR(255) DEFAULT NULL COMMENT '备注(异常/缺刊原因)',
+    `create_time`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_task_no` (`task_no`),
+    UNIQUE KEY `uk_sub_date` (`subscription_id`, `deliver_date`),
+    KEY `idx_courier` (`courier_id`),
+    KEY `idx_date` (`deliver_date`),
+    KEY `idx_status` (`status`),
+    KEY `idx_customer` (`customer_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='报刊发放任务表';
+
+CREATE TABLE IF NOT EXISTS `biz_missing` (
+    `id`              BIGINT       NOT NULL AUTO_INCREMENT COMMENT '缺刊记录ID',
+    `task_id`         BIGINT       NOT NULL COMMENT '原发放任务ID',
+    `newspaper_id`    BIGINT       NOT NULL COMMENT '报刊ID',
+    `customer_id`     BIGINT       NOT NULL COMMENT '客户ID',
+    `reason`          VARCHAR(255) DEFAULT NULL COMMENT '缺刊原因',
+    `reissue_task_id` BIGINT       DEFAULT NULL COMMENT '补发任务ID',
+    `status`          VARCHAR(16)  NOT NULL DEFAULT 'open' COMMENT 'open待处理/reissued已补发/closed关闭',
+    `operator_id`     BIGINT       DEFAULT NULL COMMENT '处理人员ID',
+    `operator_name`   VARCHAR(64)  DEFAULT NULL COMMENT '处理人员名称',
+    `create_time`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_task` (`task_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_customer` (`customer_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='缺刊处理表';
+
+-- ================================================================
 -- 结束
 -- ================================================================
