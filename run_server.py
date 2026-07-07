@@ -97,6 +97,21 @@ def main() -> None:
     ensure_password()
     try:
         ensure_database()
+    except pymysql.err.OperationalError as e:
+        code = e.args[0] if e.args else 0
+        if code in (2003, 2002):
+            print("[ERR] 无法连接 MySQL 服务。请确认：")
+            print("      1) 本机已安装并启动 MySQL 服务（MySQL80）")
+            print("      2) 端口 3306 可用")
+            print(f"      详细错误：{e}")
+        elif code == 1045:
+            print("[ERR] MySQL 用户名或密码错误。")
+            print("      可删除本目录下的 .db_pwd 文件后重试，重新输入密码；")
+            print("      或用 tools/reset_mysql2.bat 重置 root 密码。")
+            print(f"      详细错误：{e}")
+        else:
+            print(f"[ERR] 数据库连接失败：{e}")
+        sys.exit(1)
     except Exception as e:
         print(f"[ERR] 无法连接/创建数据库，请检查 MySQL 与口令：{e}")
         sys.exit(1)

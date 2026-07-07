@@ -1,5 +1,24 @@
-.history
-.github
-流程图
+# 密码文件（含明文 MySQL 密码，绝不能提交）
 .db_pwd
-tools
+
+# Python 编译缓存
+__pycache__/
+*.py[cod]
+*.class
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 编辑器/系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 本地历史（VS Code 插件）
+.history/
+
+# 本地 SSCA 配置（与本项目无关）
+.github/
